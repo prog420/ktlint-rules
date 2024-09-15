@@ -4,36 +4,35 @@ import com.pinterest.ktlint.rule.engine.core.api.ElementType
 import com.pinterest.ktlint.rule.engine.core.api.Rule
 import com.pinterest.ktlint.rule.engine.core.api.RuleId
 import org.jetbrains.kotlin.com.intellij.lang.ASTNode
-import org.jetbrains.kotlin.com.intellij.psi.impl.source.tree.LeafPsiElement
+import org.jetbrains.kotlin.com.intellij.psi.PsiElement
+import org.jetbrains.kotlin.com.intellij.psi.PsiWhiteSpace
+import org.jetbrains.kotlin.psi.KtPsiFactory
 
-class TwoBlankLinesRule : Rule(
-    RuleId("two-blank-lines-after-import-rule"),
-    about = About()
-) {
+fun PsiElement.setLineBreaks(lineBreaks: Int = 3) {
+    val factory = KtPsiFactory(this.project)
+    val breaks = factory.createNewLine(lineBreaks)
+    this.node.replaceChild(this.node.firstChildNode, breaks.node)
+}
+
+class TwoBlankLinesRule :
+    Rule(
+        RuleId("codestyle:two-blank-lines-after-import"),
+        about = About(),
+    ) {
     override fun beforeVisitChildNodes(
         node: ASTNode,
         autoCorrect: Boolean,
-        emit: (offset: Int, errorMessage: String, canBeAutoCorrected: Boolean) -> Unit
+        emit: (offset: Int, errorMessage: String, canBeAutoCorrected: Boolean) -> Unit,
     ) {
-        // Process CLASS nodes
-        if (node.elementType == ElementType.CLASS) {
-            val prevSibling = node.treePrev
-
-            // Check if the previous sibling is the IMPORT_LIST (import block)
-            if (prevSibling?.elementType == ElementType.IMPORT_LIST) {
-                val importsText = prevSibling.text
-
-                // Count the number of blank lines between imports and class declaration
-                val blankLines = importsText.split("\n").count { it.isBlank() }
-
-                if (blankLines < 2) {
-                    // Emit an error if there are fewer than 2 blank lines
-                    emit(node.startOffset, "There should be two blank lines between the import block and the class declaration", true)
-
-                    if (autoCorrect && prevSibling is LeafPsiElement) {
-                        // Add the necessary blank lines before the class declaration
-                        prevSibling.rawReplaceWithText(importsText + "\n\n")
-                    }
+        if (node.elementType == ElementType.IMPORT_LIST) {
+            val nextSibling = node.treeNext
+            if (nextSibling.psi is PsiWhiteSpace && nextSibling.text.count { it == '\n' } != 3) {
+                val nextNode = nextSibling.treeNext
+                println(nextNode)
+                emit(nextNode.startOffset, "There must be two blank lines after imports", true)
+                if (autoCorrect) {
+                    // Auto-correction logic
+                    nextSibling.psi.setLineBreaks(2)
                 }
             }
         }
